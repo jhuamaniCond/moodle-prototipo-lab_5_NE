@@ -63,10 +63,8 @@ $conversaciones = [
 ];
 
 foreach ($conversaciones as $num => [$teacher, $msgs]) {
-    $section = $DB->get_record('course_sections', ['course' => $course->id, 'section' => $num], '*', MUST_EXIST);
-    $cm = $DB->get_record_sql("SELECT cm.id, cm.instance FROM {course_modules} cm JOIN {modules} m ON m.id = cm.module
-                                WHERE m.name = 'chat' AND cm.section = ?", [$section->id], MUST_EXIST);
-    $chat = $DB->get_record('chat', ['id' => $cm->instance], '*', MUST_EXIST);
+    $chat = $DB->get_record_select('chat', 'course = ? AND ' . $DB->sql_like('name', '?'),
+        [$course->id, "Chat del Módulo $num:%"], '*', MUST_EXIST);
     $DB->delete_records('chat_messages', ['chatid' => $chat->id]);
     $users = ['p' => $uid($teacher), 'a' => $ana, 'l' => $luis];
 

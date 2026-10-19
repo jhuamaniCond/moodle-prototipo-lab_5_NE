@@ -21,6 +21,7 @@ set_config('forcetimezone', 'America/Lima');
 set_config('frontpage', FRONTPAGEALLCOURSELIST);
 set_config('frontpageloggedin', FRONTPAGEALLCOURSELIST);
 $DB->set_field('modules', 'visible', 1, ['name' => 'chat']);
+$DB->set_field('modules', 'visible', 1, ['name' => 'subsection']);
 $site = get_site();
 $site->fullname = 'Asesores Unidos S.A.C. – Campus Virtual';
 $site->shortname = 'AUSAC';
@@ -216,15 +217,29 @@ foreach ($modules as $num => $m) {
     $DB->update_record('course_sections', (object)['id' => $section->id, 'name' => $m['name'],
         'summary' => "<p><strong>{$m['weeks']}</strong><br>Docente: {$m['docente']}</p>", 'summaryformat' => FORMAT_HTML]);
 
-    $common = ['course' => $course->id, 'section' => $num];
-    foreach ($m['urls'] as [$name, $url]) {
-        $gen->create_module('url', $common + ['name' => $name, 'externalurl' => $url, 'display' => 0,
-            'intro' => '', 'showdescription' => 0]);
+    // Subsecciones "Semana 1" y "Semana 2" dentro del módulo (mod_subsection, Moodle 4.5).
+    $fecha = fn(string $d) => (new DateTime($d, $tz))->format('d/m/Y');
+    $semana = function(int $n, string $desde, string $hasta) use ($gen, $DB, $course, $num, $fecha): int {
+        $sub = $gen->create_module('subsection', ['course' => $course->id, 'section' => $num,
+            'name' => "Semana $n ({$fecha($desde)} – {$fecha($hasta)})"]);
+        return (int)$DB->get_field('course_sections', 'section',
+            ['course' => $course->id, 'component' => 'mod_subsection', 'itemid' => $sub->id], MUST_EXIST);
+    };
+    $finsemana1 = (new DateTime($m['w2'], $tz))->modify('-1 day')->format('Y-m-d');
+    $semana1 = ['course' => $course->id, 'section' => $semana(1, $m['start'], $finsemana1)];
+    $semana2 = ['course' => $course->id, 'section' => $semana(2, $m['w2'], $m['end'])];
+
+    // Semana 1: libro digital y video; la tarea se publica al inicio y se entrega al final de la semana 2.
+    // Semana 2: artículo, enlace, caso de estudio, chat y cuestionario.
+    foreach ($m['urls'] as $i => [$name, $url]) {
+        $gen->create_module('url', ($i < 2 ? $semana1 : $semana2) + ['name' => $name, 'externalurl' => $url,
+            'display' => 0, 'intro' => '', 'showdescription' => 0]);
     }
-    $gen->create_module('page', $common + ['name' => $m['caso'][0], 'content' => $m['caso'][1],
+    $gen->create_module('page', $semana2 + ['name' => $m['caso'][0], 'content' => $m['caso'][1],
         'intro' => '', 'contentformat' => FORMAT_HTML]);
 
-    $gen->create_module('assign', $common + [
+    $common = $semana2;
+    $gen->create_module('assign', $semana1 + [
         'name' => $m['tarea'][0], 'intro' => $m['tarea'][1], 'introformat' => FORMAT_HTML, 'showdescription' => 1,
         'allowsubmissionsfromdate' => $ts($m['start'] . ' 00:00'),
         'duedate' => $ts($m['end'] . ' 23:59'),
