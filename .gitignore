@@ -1,0 +1,7 @@
+# Código de Moodle: lo descarga ejecutar.ps1 (git clone MOODLE_405_STABLE)
+/moodle/
+
+# Contraseñas de prueba generadas en la instalación
+credenciales.txt
+
+*.log
